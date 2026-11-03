@@ -1,23 +1,22 @@
 """
-Student Grade Manager (Pro Terminal Edition)
-Pure Python Standard Library — No external packages required.
+Student Grade Manager - Enhanced Edition
+Pure Standard Library | Clean Terminal UI | Robust Validation
 """
 
 from dataclasses import dataclass
-import csv
-import json
-import statistics
+import sys
 
 
-# ANSI escape sequences for clean terminal formatting
 class Style:
+    """Terminal styling using standard ANSI escape codes."""
     RESET = "\033[0m"
     BOLD = "\033[1m"
+    DIM = "\033[2m"
     GREEN = "\033[92m"
     YELLOW = "\033[93m"
     RED = "\033[91m"
     CYAN = "\033[96m"
-    GRAY = "\033[90m"
+    BLUE = "\033[94m"
 
 
 @dataclass
@@ -27,6 +26,7 @@ class Student:
 
     @property
     def grade(self) -> str:
+        """Determines grade according to boundary rules[cite: 1]."""
         if self.mark >= 90:
             return "A"
         elif self.mark >= 80:
@@ -38,152 +38,199 @@ class Student:
         return "E"
 
     @property
-    def color(self) -> str:
-        """Visual color coding based on academic standing."""
-        if self.grade in ("A", "B"):
-            return Style.GREEN
-        if self.grade == "C":
-            return Style.CYAN
-        if self.grade == "D":
-            return Style.YELLOW
-        return Style.RED
+    def grade_color(self) -> str:
+        """Color indicator based on performance level."""
+        colors = {
+            "A": Style.GREEN,
+            "B": Style.CYAN,
+            "C": Style.BLUE,
+            "D": Style.YELLOW,
+            "E": Style.RED,
+        }
+        return colors.get(self.grade, Style.RESET)
+
+    @property
+    def formatted_mark(self) -> str:
+        """Trims decimal point when mark is an exact whole integer."""
+        return f"{int(self.mark)}" if self.mark.is_integer() else f"{self.mark:.1f}"
 
 
 students: list[Student] = []
 
 
-def get_grade(mark: float) -> str:
-    """Helper satisfying the base assignment function interface."""
-    return Student("", mark).grade
+def is_duplicate_name(candidate_name: str) -> bool:
+    """Case-insensitive check for existing names."""
+    normalized = candidate_name.strip().lower()
+    return any(s.name.lower() == normalized for s in students)
 
 
-def prompt_valid_name() -> str:
+def prompt_student_name() -> str:
+    """Collects and verifies a clean, unique name or allows cancellation."""
     while True:
-        name = input(f"{Style.CYAN}Enter student name: {Style.RESET}").strip()
-        if name:
-            return name
-        print(f"{Style.RED}Error: Name cannot be blank.{Style.RESET}")
+        raw = input(f"{Style.CYAN}Enter student name (or type 'cancel'): {Style.RESET}").strip()
+
+        if not raw:
+            print(f"{Style.RED}Error: Name cannot be blank.{Style.RESET}")
+            continue
+
+        if raw.lower() == "cancel":
+            return ""
+
+        # Validate that the name contains sensible characters
+        clean_name = " ".join(raw.split()).title()
+
+        if is_duplicate_name(clean_name):
+            print(f"{Style.RED}Error: Student '{clean_name}' already exists. Names must be unique.{Style.RESET}")
+            continue
+
+        return clean_name
 
 
-def prompt_valid_mark() -> float:
+def prompt_student_mark() -> float | None:
+    """Collects and validates grade marks within the [0, 100] range."""
     while True:
-        raw_val = input(f"{Style.CYAN}Enter mark (0 - 100): {Style.RESET}").strip()
+        raw = input(f"{Style.CYAN}Enter mark (0 - 100) or 'cancel': {Style.RESET}").strip()
+
+        if raw.lower() == "cancel":
+            return None
+
         try:
-            val = float(raw_val)
+            val = float(raw)
             if 0.0 <= val <= 100.0:
                 return round(val, 2)
-            print(f"{Style.RED}Error: Mark must be within 0 to 100.{Style.RESET}")
+            print(f"{Style.RED}Error: '{val}' is outside valid boundaries. Mark must be between 0 and 100.{Style.RESET}")
         except ValueError:
-            print(f"{Style.RED}Error: Numeric entry required (e.g. 85 or 92.5).{Style.RESET}")
+            print(f"{Style.RED}Error: '{raw}' is not a valid number. Digits only.{Style.RESET}")
 
 
-def add_student():
-    name = prompt_valid_name()
-    mark = prompt_valid_mark()
-    students.append(Student(name=name, mark=mark))
-    print(f"{Style.GREEN}✓ Successfully recorded {name} ({mark}){Style.RESET}\n")
+def add_student_entry():
+    """Add student workflow with cancellation support."""
+    print(f"\n{Style.BOLD}--- Register New Student ---{Style.RESET}")
+    
+    name = prompt_student_name()
+    if not name:
+        print(f"{Style.DIM}Action cancelled. Returning to main menu.{Style.RESET}\n")
+        return
+
+    mark = prompt_student_mark()
+    if mark is None:
+        print(f"{Style.DIM}Action cancelled. Returning to main menu.{Style.RESET}\n")
+        return
+
+    student = Student(name=name, mark=mark)
+    students.append(student)
+    print(
+        f"{Style.GREEN}✓ Successfully added {student.name} | "
+        f"Mark: {student.formatted_mark} | Grade: {student.grade}{Style.RESET}\n"
+    )
 
 
-def display_grade_histogram(marks: list[float]):
-    """Renders a pure-ASCII horizontal bar chart."""
-    counts = {"A": 0, "B": 0, "C": 0, "D": 0, "E": 0}
+def render_distribution_chart(marks: list[float]):
+    """Renders a text-based ASCII bar chart showing grade frequencies."""
+    grade_order = ["A", "B", "C", "D", "E"]
+    counts = {g: 0 for g in grade_order}
     for m in marks:
-        counts[get_grade(m)] += 1
+        # Evaluate grade directly for histogram tally
+        if m >= 90:
+            counts["A"] += 1
+        elif m >= 80:
+            counts["B"] += 1
+        elif m >= 70:
+            counts["C"] += 1
+        elif m >= 60:
+            counts["D"] += 1
+        else:
+            counts["E"] += 1
 
     print(f"\n{Style.BOLD}Grade Distribution:{Style.RESET}")
-    for grade, count in counts.items():
-        bar = "█" * (count * 2)
-        print(f"  {grade} [{count:>2}]: {bar}")
+    for grade in grade_order:
+        tally = counts[grade]
+        bar = "█" * (tally * 2) if tally > 0 else "·"
+        print(f"  Grade {grade} [{tally:>2}]: {bar}")
 
 
 def show_results():
+    """Renders tabular report, class statistics, and visual frequency chart."""
     if not students:
-        print(f"{Style.YELLOW}No student records available to display.{Style.RESET}\n")
+        print(f"\n{Style.YELLOW}No student records found. Add students first.{Style.RESET}\n")
         return
 
     marks = [s.mark for s in students]
     highest = max(marks)
     lowest = min(marks)
-    avg = sum(marks) / len(marks)
-    median = statistics.median(marks)
+    average = sum(marks) / len(marks)
 
-    print("\n" + "=" * 42)
-    print(f"{Style.BOLD}{'Name':<18} {'Mark':<8} {'Grade':<6} {'Badge'}{Style.RESET}")
-    print("-" * 42)
+    # Dynamic column width calculation to prevent layout breaks on long names
+    max_name_len = max(len(s.name) for s in students)
+    name_col_width = max(max_name_len + 2, 16)
 
+    total_width = name_col_width + 8 + 8 + 12
+    divider = "─" * total_width
+
+    print("\n" + f"{Style.BOLD}┌" + "─" * (total_width - 2) + "┐" + f"{Style.RESET}")
+    title = "ACADEMIC GRADE REPORT"
+    print(f"{Style.BOLD}│{title.center(total_width - 2)}│{Style.RESET}")
+    print(f"{Style.BOLD}├" + divider[1:-1] + "┤" + f"{Style.RESET}")
+
+    # Header
+    print(
+        f"{Style.BOLD}│ "
+        f"{'Name':<{name_col_width - 2}} "
+        f"{'Mark':<7} "
+        f"{'Grade':<7} "
+        f"{'Status':<9}│{Style.RESET}"
+    )
+    print("├" + divider[1:-1] + "┤")
+
+    # Rows
     for s in students:
-        badge = "★ Top" if s.mark == highest and len(students) > 1 else ""
-        formatted_mark = int(s.mark) if s.mark.is_integer() else f"{s.mark:.1f}"
-        print(
-            f"{s.name:<18} "
-            f"{formatted_mark:<8} "
-            f"{s.color}{s.grade:<6}{Style.RESET} "
-            f"{Style.BOLD}{badge}{Style.RESET}"
+        status = ""
+        if s.mark == highest and len(students) > 1:
+            status = f"{Style.GREEN}★ High{Style.RESET}"
+        elif s.mark == lowest and len(students) > 1 and highest != lowest:
+            status = f"{Style.RED}▼ Low{Style.RESET}"
+
+        row_content = (
+            f"│ {s.name:<{name_col_width - 2}} "
+            f"{s.formatted_mark:<7} "
+            f"{s.grade_color}{s.grade:<7}{Style.RESET} "
         )
+        # Pad status text appropriately because ANSI escapes add non-visible characters
+        print(f"{row_content}{status:<18}│")
 
-    print("-" * 42)
-    print(f"Average: {avg:.1f}   Median: {median:.1f}")
-    print(f"Highest: {highest}   Lowest: {lowest}")
-    print("=" * 42)
+    print("└" + divider[1:-1] + "┘")
 
-    # Show terminal chart
-    display_grade_histogram(marks)
+    # Class Metrics
+    highest_str = f"{int(highest)}" if highest.is_integer() else f"{highest:.1f}"
+    lowest_str = f"{int(lowest)}" if lowest.is_integer() else f"{lowest:.1f}"
+
+    print(f"{Style.BOLD}Average:{Style.RESET} {average:.1f}")
+    print(f"{Style.BOLD}Highest:{Style.RESET} {highest_str}   {Style.BOLD}Lowest:{Style.RESET} {lowest_str}")
+
+    # Visual ASCII Histogram
+    render_distribution_chart(marks)
     print()
 
 
-def export_data():
-    """Allows exporting collected grades to CSV or JSON."""
-    if not students:
-        print(f"{Style.YELLOW}Nothing to export.{Style.RESET}\n")
-        return
-
-    print("\n1. Export to CSV (Excel compatible)")
-    print("2. Export to JSON")
-    fmt = input("Choose format (1-2): ").strip()
-
-    if fmt == "1":
-        filename = "grades_export.csv"
-        with open(filename, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(["Name", "Mark", "Grade"])
-            for s in students:
-                writer.writerow([s.name, s.mark, s.grade])
-        print(f"{Style.GREEN}✓ Exported to {filename}{Style.RESET}\n")
-
-    elif fmt == "2":
-        filename = "grades_export.json"
-        with open(filename, "w", encoding="utf-8") as f:
-            json.dump(
-                [{"name": s.name, "mark": s.mark, "grade": s.grade} for s in students],
-                f,
-                indent=2,
-            )
-        print(f"{Style.GREEN}✓ Exported to {filename}{Style.RESET}\n")
-    else:
-        print(f"{Style.RED}Invalid export option.{Style.RESET}\n")
-
-
 def main():
+    """Application entry and event loop."""
     while True:
-        print(f"{Style.BOLD}--- Student Grade Manager Pro ---{Style.RESET}")
+        print(f"{Style.BOLD}Student Grade Manager{Style.RESET}")
         print("1. Add Student")
-        print("2. Show Results & Analytics")
-        print("3. Export Grade Sheet (CSV/JSON)")
-        print("4. Quit")
+        print("2. Show Results")
+        print("3. Quit")
 
-        choice = input("Enter choice (1-4): ").strip()
+        choice = input(f"{Style.CYAN}Select option (1-3): {Style.RESET}").strip()
 
         if choice == "1":
-            add_student()
+            add_student_entry()
         elif choice == "2":
             show_results()
         elif choice == "3":
-            export_data()
-        elif choice == "4":
-            print(f"{Style.CYAN}Exiting application. Goodbye!{Style.RESET}")
-            break
+            print(f"\n{Style.GREEN}Program closed. Have a great day!{Style.RESET}")
+            sys.exit(0)
         else:
-            print(f"{Style.RED}Invalid option. Enter 1 to 4.{Style.RESET}\n")
+            print(f"{Style.RED}Invalid option. Please enter 1, 2, or 3.{Style.RESET}\n")
 
 
 if __name__ == "__main__":
