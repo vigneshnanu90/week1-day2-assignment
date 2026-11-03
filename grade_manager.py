@@ -163,48 +163,65 @@ def show_results():
     # Dynamic column width calculation to prevent layout breaks on long names
     max_name_len = max(len(s.name) for s in students)
     name_col_width = max(max_name_len + 2, 16)
+    mark_w = 8
+    grade_w = 8
+    status_w = 10
 
-    total_width = name_col_width + 8 + 8 + 12
-    divider = "─" * total_width
+    # Total inner content width: margins + 3 spaces between columns
+    inner_width = name_col_width + mark_w + grade_w + status_w + 3
+    
+    # Outer box border
+    top_border = "┌" + "─" * (inner_width + 2) + "┐"
+    divider = "├" + "─" * (inner_width + 2) + "┤"
+    bottom_border = "└" + "─" * (inner_width + 2) + "┘"
 
-    print("\n" + f"{Style.BOLD}┌" + "─" * (total_width - 2) + "┐" + f"{Style.RESET}")
+    print("\n" + f"{Style.BOLD}{top_border}{Style.RESET}")
     title = "ACADEMIC GRADE REPORT"
-    print(f"{Style.BOLD}│{title.center(total_width - 2)}│{Style.RESET}")
-    print(f"{Style.BOLD}├" + divider[1:-1] + "┤" + f"{Style.RESET}")
+    print(f"{Style.BOLD}│ {title.center(inner_width)} │{Style.RESET}")
+    print(f"{Style.BOLD}{divider}{Style.RESET}")
 
     # Header
     print(
         f"{Style.BOLD}│ "
-        f"{'Name':<{name_col_width - 2}} "
-        f"{'Mark':<7} "
-        f"{'Grade':<7} "
-        f"{'Status':<9}│{Style.RESET}"
+        f"{'Name':<{name_col_width}} "
+        f"{'Mark':<{mark_w}} "
+        f"{'Grade':<{grade_w}} "
+        f"{'Status':<{status_w}} │{Style.RESET}"
     )
-    print("├" + divider[1:-1] + "┤")
+    print(f"{divider}")
 
-    # Rows
+    # Data Rows
     for s in students:
-        status = ""
+        # 1. Determine plain-text badge first (for correct spacing)
         if s.mark == highest and len(students) > 1:
-            status = f"{Style.GREEN}★ High{Style.RESET}"
+            raw_status = "★ High"
+            status_color = Style.GREEN
         elif s.mark == lowest and len(students) > 1 and highest != lowest:
-            status = f"{Style.RED}▼ Low{Style.RESET}"
+            raw_status = "▼ Low"
+            status_color = Style.RED
+        else:
+            raw_status = ""
+            status_color = Style.RESET
 
-        row_content = (
-            f"│ {s.name:<{name_col_width - 2}} "
-            f"{s.formatted_mark:<7} "
-            f"{s.grade_color}{s.grade:<7}{Style.RESET} "
-        )
-        # Pad status text appropriately because ANSI escapes add non-visible characters
-        print(f"{row_content}{status:<18}│")
+        # 2. Pad plain strings first so terminal widths stay perfectly aligned
+        name_cell = f"{s.name:<{name_col_width}}"
+        mark_cell = f"{s.formatted_mark:<{mark_w}}"
+        grade_cell = f"{s.grade:<{grade_w}}"
+        status_cell = f"{raw_status:<{status_w}}"
 
-    print("└" + divider[1:-1] + "┘")
+        # 3. Apply ANSI styles around the correctly-padded cells
+        colored_grade = f"{s.grade_color}{grade_cell}{Style.RESET}"
+        colored_status = f"{status_color}{status_cell}{Style.RESET}"
+
+        print(f"│ {name_cell} {mark_cell} {colored_grade} {colored_status} │")
+
+    print(f"{bottom_border}")
 
     # Class Metrics
     highest_str = f"{int(highest)}" if highest.is_integer() else f"{highest:.1f}"
     lowest_str = f"{int(lowest)}" if lowest.is_integer() else f"{lowest:.1f}"
 
-    print(f"{Style.BOLD}Average:{Style.RESET} {average:.1f}")
+    print(f"\n{Style.BOLD}Average:{Style.RESET} {average:.1f}")
     print(f"{Style.BOLD}Highest:{Style.RESET} {highest_str}   {Style.BOLD}Lowest:{Style.RESET} {lowest_str}")
 
     # Visual ASCII Histogram
